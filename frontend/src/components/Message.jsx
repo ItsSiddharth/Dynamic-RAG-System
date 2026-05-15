@@ -1,67 +1,92 @@
 export default function Message({ message }) {
   const isUser = message.role === "user";
 
-  // Safely map basic Markdown bolding (**text**) to HTML elements
   const renderText = (text) => {
     if (!text) return null;
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, index) => {
-      if (part.startsWith("**") && part.endsWith("**")) {
-        return <strong key={index} className="font-semibold text-gray-900 dark:text-white">{part.slice(2, -2)}</strong>;
-      }
-      return <span key={index}>{part}</span>;
+    // Handle **bold**, `code`, and newlines
+    const lines = text.split("\n");
+    return lines.map((line, li) => {
+      const parts = line.split(/(\*\*.*?\*\*|`[^`]+`)/g);
+      return (
+        <span key={li}>
+          {parts.map((part, i) => {
+            if (part.startsWith("**") && part.endsWith("**")) {
+              return <strong key={i} className="msg-bold">{part.slice(2, -2)}</strong>;
+            }
+            if (part.startsWith("`") && part.endsWith("`")) {
+              return <code key={i} className="msg-code">{part.slice(1, -1)}</code>;
+            }
+            return part;
+          })}
+          {li < lines.length - 1 && <br />}
+        </span>
+      );
     });
   };
 
+  if (isUser) {
+    return (
+      <div className="msg msg--user">
+        <div className="msg-user-bubble">
+          {message.image && (
+            <img src={message.image} alt="Attachment" className="msg-image" />
+          )}
+          <p>{message.text}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
-      <div className={`flex flex-col max-w-[85%] md:max-w-[75%] ${isUser ? "items-end" : "items-start"}`}>
-        
-        {isUser ? (
-          <div className="flex flex-col items-end gap-2">
-            {message.image && (
-              <img src={message.image} alt="User Upload" className="mb-1 max-w-[200px] rounded-2xl object-cover md:max-w-[300px]" />
+    <div className="msg msg--assistant">
+      <div className="msg-avatar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </div>
+
+      <div className="msg-assistant-body">
+        {(message.rewritten_query || message.vision) && (
+          <div className="msg-meta">
+            {message.rewritten_query && (
+              <span className="meta-chip meta-chip--query">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                {message.rewritten_query}
+              </span>
             )}
-            <div className="rounded-3xl rounded-tr-sm bg-gray-100 px-5 py-3 text-[15px] leading-relaxed text-gray-900 shadow-sm dark:bg-[#2f2f2f] dark:text-gray-100">
-              <div className="whitespace-pre-wrap">{message.text}</div>
-            </div>
+            {message.vision && (
+              <span className="meta-chip meta-chip--vision">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                {message.vision}
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="w-full text-[15px] leading-relaxed text-gray-800 dark:text-gray-100">
-            <div className="whitespace-pre-wrap">{renderText(message.text)}</div>
+        )}
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {message.rewritten_query && (
-                <div className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:border-white/5 dark:bg-[#2f2f2f] dark:text-gray-400">
-                  <span className="mr-1 font-medium">Query:</span> {message.rewritten_query}
-                </div>
-              )}
-              
-              {message.vision && (
-                <div className="inline-flex items-center rounded-md border border-blue-100 bg-blue-50 px-2.5 py-1 text-xs text-blue-600 dark:border-blue-900/30 dark:bg-blue-900/20 dark:text-blue-400">
-                  <span className="mr-1 font-medium">Vision:</span> {message.vision}
-                </div>
-              )}
+        <div className="msg-text">{renderText(message.text)}</div>
+
+        {message.citations?.length > 0 && (
+          <div className="citations">
+            <div className="citations-label">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Sources
             </div>
-
-            {message.citations?.length > 0 && (
-              <div className="mt-4 border-t border-gray-200 pt-4 dark:border-white/10">
-                <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Sources</div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {message.citations.map((c, i) => (
-                    <a key={i} href="#" className="block rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:border-white/10 dark:bg-[#212121] dark:hover:bg-[#2f2f2f]">
-                      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-200">
-                        <span className="mr-1 text-blue-600 dark:text-blue-400">[{c.source_number}]</span>
-                        {c.collection}
+            <div className="citations-grid">
+              {message.citations.map((c, i) => (
+                <div key={i} className="citation-card">
+                  <div className="citation-num">[{c.source_number}]</div>
+                  <div className="citation-info">
+                    <div className="citation-collection">{c.collection}</div>
+                    <div className="citation-score">
+                      <div className="score-bar">
+                        <div className="score-fill" style={{ width: `${(Number(c.retrieval_score) * 100).toFixed(0)}%` }} />
                       </div>
-                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                        Relevance: {(Number(c.retrieval_score) * 100).toFixed(1)}%
-                      </div>
-                    </a>
-                  ))}
+                      <span>{(Number(c.retrieval_score) * 100).toFixed(1)}%</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              ))}
+            </div>
           </div>
         )}
       </div>

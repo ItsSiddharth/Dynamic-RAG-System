@@ -8,6 +8,7 @@ export default function App() {
   const [selected, setSelected] = useState([]);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     getCollections().then(setCollections).catch(console.error);
@@ -19,22 +20,13 @@ export default function App() {
     const formData = new FormData();
     formData.append("query", query);
     formData.append("rewrite_query", "true");
-
     selected.forEach((c) => formData.append("selected_collections", c));
-
-    if (file) {
-      formData.append("image", file);
-    }
+    if (file) formData.append("image", file);
 
     try {
-      // Optimistic UI update for user message
       setMessages((prev) => [
         ...prev,
-        { 
-          role: "user", 
-          text: query, 
-          image: file ? URL.createObjectURL(file) : null 
-        },
+        { role: "user", text: query, image: file ? URL.createObjectURL(file) : null },
       ]);
 
       const response = await chat(formData);
@@ -53,10 +45,7 @@ export default function App() {
       console.error("Chat error:", err);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          text: "Error: failed to connect to the backend.",
-        },
+        { role: "assistant", text: "Error: Please select a valid source to retrieve from." },
       ]);
     } finally {
       setLoading(false);
@@ -64,19 +53,21 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen w-screen bg-white text-gray-800">
+    <div className="app-shell">
       <CollectionSelector
         collections={collections}
         selected={selected}
         setSelected={setSelected}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen((v) => !v)}
       />
-      
-      {/* This "flex-1 flex flex-col" is what forces the input to the bottom */}
-      <main className="flex flex-1 flex-col min-w-0 relative h-full">
+      <main className="main-content">
         <ChatBox
           messages={messages}
           onSend={sendMessage}
           loading={loading}
+          selectedCount={selected.length}
+          onToggleSidebar={() => setSidebarOpen((v) => !v)}
         />
       </main>
     </div>
