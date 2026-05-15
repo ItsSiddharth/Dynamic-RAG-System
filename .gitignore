@@ -2,3 +2,5 @@ ollama/
 ollama-linux-amd64.tgz
 qdrant_data/
 data/
+**/__pycache__/
+*.pyc
