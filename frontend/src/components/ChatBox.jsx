@@ -66,7 +66,7 @@ export default function ChatBox({ messages, onSend, loading, selectedCount, onTo
               <h2 className="empty-title">Cyber RAG Intelligence</h2>
               <p className="empty-sub">Select your knowledge sources from the sidebar, then ask anything about your cybersecurity corpus.</p>
               <div className="empty-prompts">
-                {["Give som techniques to physically securing media with cardholder data?", "Summarize recent CVEs in the dataset", "What is an indicator that an Intrusion Detection System (IDS) might identify as a network attack?"].map((p) => (
+                {["Give some techniques to physically securing media with cardholder data?", "Summarize recent CVEs in the dataset", "What is an indicator that an Intrusion Detection System (IDS) might identify as a network attack?"].map((p) => (
                   <button key={p} className="prompt-chip" onClick={() => { setInput(p); textareaRef.current?.focus(); }}>
                     {p}
                   </button>
