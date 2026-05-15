@@ -2,6 +2,22 @@ import requests
 from config import *
 
 
+def build_citation_block(retrieved_chunks):
+
+    citations = []
+
+    for idx, chunk in enumerate(retrieved_chunks):
+
+        citations.append(
+            f"[Source {idx+1}] "
+            f"Collection: {chunk['collection']} | "
+            f"Topic: {chunk.get('topic', 'N/A')} | "
+            f"Score: {chunk['retrieval_score']:.4f}"
+        )
+
+    return "\n".join(citations)
+
+
 def generate_answer(query, retrieved_chunks):
 
     context = "\n\n".join(
@@ -9,32 +25,40 @@ def generate_answer(query, retrieved_chunks):
         for chunk in retrieved_chunks
     )
 
+    citation_block = build_citation_block(
+        retrieved_chunks
+    )
+
     prompt = f"""
-You are a cybersecurity assistant.
+        You are a cybersecurity assistant.
 
-Use ONLY the provided context to answer the user's question.
+        Use ONLY the provided context.
 
-If the context does not contain enough information, say:
-"I could not find sufficient information."
+        If insufficient information exists, say:
+        "I could not find sufficient information."
 
-Provide:
-- concise
-- practical
-- professional
-- actionable cybersecurity guidance
+        Requirements:
+        - concise
+        - actionable
+        - cybersecurity-focused
+        - professional
+        - no hallucinations
+        - cite sources when relevant
 
-Do NOT hallucinate.
+        ================ SOURCES ================
 
-================ CONTEXT ================
+        {citation_block}
 
-{context}
+        ================ CONTEXT ================
 
-================ QUESTION ================
+        {context}
 
-{query}
+        ================ QUESTION ================
 
-================ ANSWER ================
-"""
+        {query}
+
+        ================ ANSWER ================
+        """
 
     payload = {
         "model": OLLAMA_MODEL,

@@ -9,6 +9,9 @@ from vision import vision_describe
 import os
 from werkzeug.utils import secure_filename
 
+import json
+from datetime import datetime
+
 app = Flask(__name__)
 
 CORS(app)
@@ -48,19 +51,18 @@ def rewrite():
 @app.route("/chat", methods=["POST"])
 def chat():
 
-    data = request.json
+    user_query = request.form.get("query", "")
 
-    user_query = data.get("query", "")
-
-    selected_collections = data.get(
-        "selected_collections",
-        []
+    selected_collections = request.form.getlist(
+        "selected_collections"
     )
 
-    rewrite_enabled = data.get(
-        "rewrite_query",
-        True
+    rewrite_enabled = (
+        request.form.get("rewrite_query", "true")
+        .lower() == "true"
     )
+
+    image = request.files.get("image")
 
     if len(selected_collections) == 0:
 
@@ -68,33 +70,189 @@ def chat():
             "error": "No collections selected"
         }), 400
 
-    # Rewrite query
+    # =========================
+    # IMAGE PROCESSING
+    # =========================
+
+    vision_result = None
+    image_query = None
+
+    if image:
+
+        try:
+
+            filename = secure_filename(
+                image.filename
+            )
+
+            save_path = os.path.join(
+                "/home/nam/projects/sid/RAG-Assignment3/data/uploads",
+                filename
+            )
+
+            image.save(save_path)
+
+            vision_result = vision_describe(
+                save_path
+            )
+
+            image_query = vision_result
+
+        except Exception as e:
+
+            return jsonify({
+                "error": f"Vision failed: {str(e)}"
+            }), 500
+
+    # =========================
+    # COMBINE INPUTS
+    # =========================
+
+    combined_query = user_query
+
+    if image_query:
+
+        combined_query += (
+            "\n\nIMAGE CONTEXT:\n"
+            + image_query
+        )
+
+    # =========================
+    # QUERY REWRITE
+    # =========================
+
     if rewrite_enabled:
 
-        rewritten_query = rewrite_query(user_query)
+        rewritten_query = rewrite_query(
+            combined_query
+        )
 
     else:
 
-        rewritten_query = user_query
+        rewritten_query = combined_query
 
-    # Retrieve chunks
+    # =========================
+    # RETRIEVAL
+    # =========================
+
     retrieved_chunks = retrieve_chunks(
         rewritten_query,
         selected_collections
     )
 
-    # Generate answer
+    # =========================
+    # GENERATION
+    # =========================
+
     answer = generate_answer(
         rewritten_query,
         retrieved_chunks
     )
 
+    # =========================
+    # STRUCTURED CITATIONS
+    # =========================
+
+    citations = []
+
+    for idx, chunk in enumerate(retrieved_chunks):
+
+        citations.append({
+
+            "source_number": idx + 1,
+
+            "collection": chunk["collection"],
+
+            "source": chunk.get("source"),
+
+            "topic": chunk.get("topic"),
+
+            "retrieval_score":
+                round(
+                    chunk["retrieval_score"],
+                    4
+                ),
+
+            "preview":
+                chunk["text"][:300]
+        })
+
+    # =========================
+    # FINAL RESPONSE
+    # =========================
+        log_entry = {
+
+        "timestamp":
+            str(datetime.now()),
+
+        "original_query":
+            user_query,
+
+        "rewritten_query":
+            rewritten_query,
+
+        "selected_collections":
+            selected_collections,
+
+        "retrieved_chunks":
+            retrieved_chunks,
+
+        "answer":
+            answer
+    }
+
+    with open(
+        "/home/nam/projects/sid/RAG-Assignment3/backend/logs/chat_logs.jsonl",
+        "a"
+    ) as f:
+
+        f.write(
+            json.dumps(log_entry)
+            + "\n"
+        )
+
     return jsonify({
-        "original_query": user_query,
-        "rewritten_query": rewritten_query,
-        "selected_collections": selected_collections,
-        "retrieved_chunks": retrieved_chunks,
-        "answer": answer
+
+        "success": True,
+
+        "pipeline": {
+
+            "vision_used":
+                image is not None,
+
+            "query_rewrite_used":
+                rewrite_enabled
+        },
+
+        "input": {
+
+            "original_query":
+                user_query,
+
+            "combined_query":
+                combined_query,
+
+            "rewritten_query":
+                rewritten_query
+        },
+
+        "retrieval": {
+
+            "selected_collections":
+                selected_collections,
+
+            "top_k":
+                len(retrieved_chunks),
+
+            "citations":
+                citations
+        },
+
+        "vision_result":
+            vision_result,
+
+        "answer":
+            answer
     })
 
 @app.route("/vision", methods=["POST"])
@@ -140,3 +298,9 @@ if __name__ == "__main__":
     debug=False,
     use_reloader=False
     )
+
+# Example CURL COmmand to test route
+"""
+curl -X POST http://localhost:5000/chat \-F "query=How do we secure wireless guest networks?" \-F "selected_collections=hf_secqa_chunks" \-F "selected_collections=hf_qaa_chunks"
+curl -X POST http://localhost:5000/chat \-F "query=Analyze this screenshot" \-F "selected_collections=hf_secqa_chunks" \-F "image=@/home/nam/projects/sid/RAG-Assignment3/data/cyber-sec-test.jpg"
+"""

@@ -20,24 +20,28 @@ def retrieve_chunks(query, selected_collections, top_k=TOP_K):
                 query=query_embedding,
                 limit=top_k,
             ).points
-
-            for hit in hits:
+            
+            for idx, hit in enumerate(hits):
+                payload = hit.payload
                 all_results.append({
-                    "score": hit.score,
-                    "text": hit.payload.get("text"),
-                    "source": hit.payload.get("source"),
-                    "topic": hit.payload.get("topic"),
-                    "ground_truth": hit.payload.get("ground_truth"),
-                    "collection": collection
+                    "rank_in_collection": idx + 1,
+                    "retrieval_score": float(hit.score),
+                    "collection": collection,
+                    "text": payload.get("text"),
+                    "source": payload.get("source"),
+                    "topic": payload.get("topic"),
+                    "ground_truth": payload.get("ground_truth"),
+                    "eval_rubric": payload.get("eval_rubric"),
+                    "original_evidence": payload.get("original_evidence")
                 })
 
         except Exception as e:
             print(f"ERROR querying {collection}: {e}")
 
-    # Global rerank
+    # Global reranking
     all_results = sorted(
         all_results,
-        key=lambda x: x["score"],
+        key=lambda x: x["retrieval_score"],
         reverse=True
     )
 
